@@ -45,5 +45,5 @@ x-casaos:
       (Unit, Laboratorium, Farmasi, Keuangan, Manajemen/Admin).
   scheme: http
   port_map: "3000"
-  index: /app.html
+  index: /
   webui_port: 3000

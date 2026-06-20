@@ -19,13 +19,13 @@ Aplikasi bisa dijalankan **dua cara**. Untuk sekadar memakai/men-deploy, cara A 
 — **tanpa install apa pun**.
 
 ### A. Tanpa server (paling mudah) ✅
-File `app.html` sudah **mandiri**: semua data disimpan di browser (localStorage), tanpa Node,
+File `index.html` sudah **mandiri**: semua data disimpan di browser (localStorage), tanpa Node,
 tanpa database, tanpa compile.
 
-- **Coba langsung:** dobel-klik `app.html` → terbuka di browser → langsung jalan.
-- **Deploy online (gratis):** unggah `app.html` (dan `index.html`) ke salah satu:
+- **Coba langsung:** dobel-klik `index.html` → terbuka di browser → langsung jalan.
+- **Deploy online (gratis):** unggah folder ini ke salah satu:
   - **Netlify Drop** — buka <https://app.netlify.com/drop>, seret folder ini ke sana. Selesai.
-  - **GitHub Pages** — push folder ini ke repo GitHub, aktifkan Pages, akses `…/app.html`.
+  - **GitHub Pages** — push folder ini ke repo GitHub, aktifkan Pages.
   - **Vercel / Cloudflare Pages** — pilih "static site", deploy folder ini apa adanya.
 
 Data tersimpan per-browser. Untuk mereset ke data contoh, buka Console (F12) lalu jalankan
@@ -40,14 +40,14 @@ Untuk multi-user / penyimpanan terpusat. Perlu **Node.js LTS** terpasang.
 ```bash
 cd server
 npm install
-npm start          # http://localhost:3000/app.html
+npm start          # http://localhost:3000/
 ```
 
-`app.html` otomatis mendeteksi server saat dibuka lewat `http://localhost:3000`. Jika server
+Aplikasi otomatis mendeteksi server saat dibuka lewat `http://localhost:3000`. Jika server
 tidak ada, ia otomatis memakai mode lokal (cara A). Detail API ada di [`server/README.md`](server/README.md).
 
 ## Cara kerja deteksi mode
-Saat dibuka, `app.html` melakukan probe `GET /api/health`:
+Saat dibuka, aplikasi melakukan probe `GET /api/health`:
 - **Berhasil** → memakai backend Node (cara B).
 - **Gagal** (dibuka langsung / hosting statis) → memakai mesin lokal localStorage (cara A),
   dan menampilkan notifikasi "Mode lokal aktif".
@@ -65,7 +65,7 @@ git clone https://github.com/mentionabbe-wq/simfar.git simfar
 cd simfar
 docker compose up -d
 ```
-Akses: `http://IP-SERVER:3000/app.html`. CasaOS akan menampilkan kontainer `simfar`.
+Akses: `http://IP-SERVER:3000/`. CasaOS akan menampilkan kontainer `simfar`.
 > Ganti port di `docker-compose.yml` bila 3000 sudah dipakai (mis. `"8095:3000"`).
 
 ### Cara 2 — image prebuilt dari GitHub (CasaOS → Custom Install)
@@ -80,8 +80,7 @@ image multi-arch (amd64+arm64) ke **GHCR**: `ghcr.io/mentionabbe-wq/simfar:lates
 ## Struktur
 ```
 permintaan-ruangan/
-├─ app.html              Aplikasi SimFar (mandiri; berisi mesin lokal + klien API server)
-├─ index.html            Halaman utama → otomatis mengalihkan ke app.html
+├─ index.html            Aplikasi SimFar — halaman utama (mandiri: mesin lokal + klien API server)
 ├─ peminjaman-ruangan.html  Draf formulir peminjaman ruangan (terpisah)
 ├─ Dockerfile            Image untuk self-host (CasaOS)
 ├─ docker-compose.yml    Definisi service + volume persisten

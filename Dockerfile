@@ -12,7 +12,7 @@ RUN npm install --omit=dev
 
 # Kode aplikasi: backend + front-end statis.
 WORKDIR /app
-COPY app.html index.html ./
+COPY index.html peminjaman-ruangan.html ./
 COPY server ./server
 
 WORKDIR /app/server

@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Sajikan file statis front-end (app.html, index.html) dari folder induk.
+// Sajikan file statis front-end (index.html = SimFar) dari folder induk.
 const FRONTEND_DIR = path.join(__dirname, '..');
 app.use(express.static(FRONTEND_DIR));
 
@@ -507,6 +507,6 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`\n  SimFar backend berjalan di http://localhost:${PORT}`);
-  console.log(`  Front-end : http://localhost:${PORT}/app.html`);
+  console.log(`  Front-end : http://localhost:${PORT}/`);
   console.log(`  API health: http://localhost:${PORT}/api/health\n`);
 });

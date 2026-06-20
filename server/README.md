@@ -1,6 +1,6 @@
 # SimFar — Backend API
 
-Backend REST untuk **SimFar (Sistem Informasi Permintaan Alkes & BMHP)** — front-end ada di `../app.html`.
+Backend REST untuk **SimFar (Sistem Informasi Permintaan Alkes & BMHP)** — front-end ada di `../index.html`.
 Dibangun dengan **Node.js + Express + SQLite (better-sqlite3)**. Semua logika bisnis (alur status
 permintaan, pembuatan PO otomatis untuk laboratorium, dan pemotongan anggaran) berjalan di server.
 
