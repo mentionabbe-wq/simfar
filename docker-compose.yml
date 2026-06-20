@@ -2,8 +2,8 @@ services:
   simfar:
     # Bangun dari sumber (clone repo ke server lalu `docker compose up -d`).
     build: .
-    # Atau pakai image prebuilt dari GitHub Actions (ganti OWNER/REPO, lalu hapus baris `build`):
-    # image: ghcr.io/OWNER/REPO:latest
+    # Atau pakai image prebuilt dari GitHub Actions (hapus baris `build` di atas):
+    # image: ghcr.io/mentionabbe-wq/simfar:latest
     image: simfar:latest
     container_name: simfar
     restart: unless-stopped

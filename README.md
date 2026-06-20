@@ -61,7 +61,7 @@ dibagikan ke semua perangkat — bukan localStorage). Login awal: **admin / admi
 ### Cara 1 — build di server CasaOS (paling mudah)
 Di CasaOS, buka **Terminal** (atau app Portainer → Stacks), lalu:
 ```bash
-git clone https://github.com/OWNER/REPO.git simfar
+git clone https://github.com/mentionabbe-wq/simfar.git simfar
 cd simfar
 docker compose up -d
 ```
@@ -70,14 +70,12 @@ Akses: `http://IP-SERVER:3000/app.html`. CasaOS akan menampilkan kontainer `simf
 
 ### Cara 2 — image prebuilt dari GitHub (CasaOS → Custom Install)
 Setelah push ke GitHub, workflow di `.github/workflows/docker-publish.yml` otomatis membangun
-image multi-arch (amd64+arm64) ke **GHCR**: `ghcr.io/OWNER/REPO:latest`. Jadikan package-nya
+image multi-arch (amd64+arm64) ke **GHCR**: `ghcr.io/mentionabbe-wq/simfar:latest`. Jadikan package-nya
 *public* di GitHub (tab Packages), lalu di CasaOS pilih **+ → Install a customized app** dan isi:
-- **Docker Image**: `ghcr.io/OWNER/REPO:latest`
+- **Docker Image**: `ghcr.io/mentionabbe-wq/simfar:latest`
 - **Port**: host `3000` → container `3000`
 - **Volume**: `/DATA/AppData/simfar/data` → `/app/server/data`, dan `.../uploads` → `/app/server/uploads`
 - **Env** (opsional): `ADMIN_USERNAME`, `ADMIN_PASSWORD`
-
-*(Ganti `OWNER/REPO` dengan akun & nama repo GitHub Anda.)*
 
 ## Struktur
 ```
