@@ -34,6 +34,7 @@ function init() {
     ruangan           TEXT NOT NULL,
     tanggal           TEXT NOT NULL,
     pemohon           TEXT NOT NULL,
+    pemohonUsername   TEXT,
     keperluan         TEXT NOT NULL,
     status            TEXT NOT NULL DEFAULT 'pending',
     sumber            TEXT NOT NULL,
@@ -159,6 +160,9 @@ function migrate() {
   if (!cols.includes('createdAt'))  db.exec('ALTER TABLE users ADD COLUMN createdAt TEXT');
   if (!cols.includes('lastLogin'))  db.exec('ALTER TABLE users ADD COLUMN lastLogin TEXT');
   if (!cols.includes('loginCount')) db.exec('ALTER TABLE users ADD COLUMN loginCount INTEGER NOT NULL DEFAULT 0');
+
+  const pcols = db.prepare('PRAGMA table_info(permintaan)').all().map((c) => c.name);
+  if (!pcols.includes('pemohonUsername')) db.exec('ALTER TABLE permintaan ADD COLUMN pemohonUsername TEXT');
 }
 
 // ── Seed data (sama dengan demo di app.html) ───────────────────────────

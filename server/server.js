@@ -174,7 +174,7 @@ app.get('/api/permintaan/:id', (req, res) => {
 
 // Buat permintaan baru (Keperawatan / Laboratorium).
 app.post('/api/permintaan', (req, res) => {
-  const { ruangan, pemohon, keperluan, sumber, tanggal, items, dokumenIds } = req.body || {};
+  const { ruangan, pemohon, pemohonUsername, keperluan, sumber, tanggal, items, dokumenIds } = req.body || {};
   if (!ruangan || !pemohon || !sumber) return res.status(400).json({ error: 'ruangan, pemohon, dan sumber wajib diisi' });
   if (!keperluan || !String(keperluan).trim()) return res.status(400).json({ error: 'Keperluan wajib diisi' });
   const clean = (Array.isArray(items) ? items : [])
@@ -188,12 +188,12 @@ app.post('/api/permintaan', (req, res) => {
   if (!clean.length) return res.status(400).json({ error: 'Tambahkan minimal 1 item' });
 
   const id = nextId('REQ', 'permintaan');
-  const insReq = db.prepare(`INSERT INTO permintaan (id, ruangan, tanggal, pemohon, keperluan, status, sumber, statusSerahTerima)
-                             VALUES (?, ?, ?, ?, ?, 'pending', ?, NULL)`);
+  const insReq = db.prepare(`INSERT INTO permintaan (id, ruangan, tanggal, pemohon, pemohonUsername, keperluan, status, sumber, statusSerahTerima)
+                             VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, NULL)`);
   const insItem = db.prepare(`INSERT INTO permintaan_items (permintaanId, nama, jenis, satuan, jumlah, statusItem, harga, urutan)
                               VALUES (?, ?, ?, ?, ?, NULL, 0, ?)`);
   const tx = db.transaction(() => {
-    insReq.run(id, ruangan, tanggal || TODAY(), pemohon, String(keperluan).trim(), sumber);
+    insReq.run(id, ruangan, tanggal || TODAY(), pemohon, pemohonUsername || null, String(keperluan).trim(), sumber);
     clean.forEach((it, i) => insItem.run(id, it.nama, it.jenis, it.satuan, it.jumlah, i));
   });
   tx();

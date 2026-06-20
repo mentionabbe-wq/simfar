@@ -320,7 +320,7 @@ function localApi(path,{method='GET',json,body}={}){
       const items=(Array.isArray(b.items)?b.items:[]).filter(it=>it&&String(it.nama||'').trim())
         .map(it=>({id:db.seq.item++,nama:String(it.nama).trim(),jenis:it.jenis==='bmhp'?'bmhp':'alkes',satuan:String(it.satuan||'pcs').trim()||'pcs',jumlah:Math.max(1,parseInt(it.jumlah,10)||1),statusItem:null,harga:0}));
       if(!items.length)E('Tambahkan minimal 1 item');
-      const p={id:nid('REQ',db.permintaan),ruangan:b.ruangan,tanggal:b.tanggal||today,pemohon:b.pemohon,keperluan:String(b.keperluan).trim(),status:'pending',sumber:b.sumber,statusSerahTerima:null,items,dokumen:resolveFilesLocal(db,b.dokumenIds)};
+      const p={id:nid('REQ',db.permintaan),ruangan:b.ruangan,tanggal:b.tanggal||today,pemohon:b.pemohon,pemohonUsername:b.pemohonUsername||'',keperluan:String(b.keperluan).trim(),status:'pending',sumber:b.sumber,statusSerahTerima:null,items,dokumen:resolveFilesLocal(db,b.dokumenIds)};
       db.permintaan.push(p);save();return Promise.resolve(p);
     }
     const p=db.permintaan.find(x=>x.id===parts[2]);
@@ -698,6 +698,7 @@ function renderKHome(){
   const rows=list.slice().reverse().map(p=>`<tr>
     <td><span class="tlink" onclick="go('my-detail',{detailId:'${p.id}'})">${esc(p.id)}</span></td>
     <td>${fdate(p.tanggal)}</td>
+    <td>${esc(p.pemohon)}</td>
     <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.keperluan)}</td>
     <td>${p.items.length} item</td>
     <td>${badge(p.status)}</td>
@@ -718,7 +719,7 @@ function renderKHome(){
     </div>
     ${list.length===0?`<div class="empty"><i class="ti ti-clipboard-list"></i><p>Belum ada permintaan. Klik "Buat Baru" untuk memulai.</p></div>`:`
     <div class="tbl-wrap"><table>
-      <thead><tr><th>No.</th><th>Tanggal</th><th>Keperluan</th><th>Item</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>No.</th><th>Tanggal</th><th>Petugas</th><th>Keperluan</th><th>Item</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`}
   </div>`;
@@ -760,6 +761,10 @@ function renderKForm(){
       <input type="text" value="${esc(S.user.ruangan)}" readonly style="background:var(--surface2)">
     </div>
     <div class="fg">
+      <label>Petugas Pemohon</label>
+      <input type="text" value="${esc(S.user.nama)}" readonly style="background:var(--surface2)">
+    </div>
+    <div class="fg full">
       <label>Tanggal Permintaan</label>
       <input type="date" id="fd" value="2026-06-20">
     </div>
@@ -817,7 +822,7 @@ async function submitReq(){
   if(!items.length){toast('Tambahkan minimal 1 item','warn');return;}
   try{
     const created=await api('/api/permintaan',{method:'POST',json:{
-      ruangan:S.user.ruangan,pemohon:S.user.nama,sumber:S.user.role,
+      ruangan:S.user.ruangan,pemohon:S.user.nama,pemohonUsername:S.user.username,sumber:S.user.role,
       keperluan:kep,tanggal:tgl,items,dokumenIds:S._docReq.map(f=>f.id)
     }});
     S._docReq=[];
@@ -869,6 +874,7 @@ function renderKHistory(){
   const rows=list.map(p=>`<tr>
     <td><span class="tlink" onclick="go('my-detail',{detailId:'${p.id}'})">${esc(p.id)}</span></td>
     <td>${fdate(p.tanggal)}</td>
+    <td>${esc(p.pemohon)}</td>
     <td>${esc(p.keperluan)}</td>
     <td>${p.items.length}</td>
     <td>${badge(p.status)}</td>
@@ -881,7 +887,7 @@ function renderKHistory(){
     </div>
     ${!list.length?`<div class="empty"><i class="ti ti-clipboard-list"></i><p>Belum ada permintaan</p></div>`:`
     <div class="tbl-wrap"><table>
-      <thead><tr><th>No.</th><th>Tanggal</th><th>Keperluan</th><th>Item</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>No.</th><th>Tanggal</th><th>Petugas</th><th>Keperluan</th><th>Item</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`}
   </div>`;
