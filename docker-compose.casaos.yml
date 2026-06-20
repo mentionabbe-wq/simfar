@@ -1,0 +1,49 @@
+name: simfar
+services:
+  simfar:
+    image: ghcr.io/mentionabbe-wq/simfar:latest
+    container_name: simfar
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      # Ganti sebelum produksi:
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=admin123
+    volumes:
+      - /DATA/AppData/simfar/data:/app/server/data
+      - /DATA/AppData/simfar/uploads:/app/server/uploads
+    x-casaos:
+      ports:
+        - container: "3000"
+          description:
+            en_us: Antarmuka web SimFar
+      volumes:
+        - container: /app/server/data
+          description:
+            en_us: Database SQLite (data persisten)
+        - container: /app/server/uploads
+          description:
+            en_us: Lampiran file yang diunggah
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: simfar
+  author: mentionabbe-wq
+  developer: mentionabbe-wq
+  category: Utilities
+  title:
+    en_us: SimFar
+  tagline:
+    en_us: Permintaan Alkes & BMHP
+  description:
+    en_us: >-
+      SimFar — sistem informasi permintaan Alkes & BMHP rumah sakit
+      (Unit, Laboratorium, Farmasi, Keuangan, Manajemen/Admin).
+  scheme: http
+  port_map: "3000"
+  index: /app.html
+  webui_port: 3000
