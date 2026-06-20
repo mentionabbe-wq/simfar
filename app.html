@@ -177,6 +177,7 @@ const S = {
   detailId: null, prosesId: null, keDetailId: null, stId: null,
   permintaan: [], pengajuan: [], anggaran: [],
   stok: [], pemakaian: [], opname: [],   // inventaris lab (dimuat bila role laboratorium)
+  users: [],                             // daftar pengguna (dimuat bila role admin)
   _docReq: [],   // staging lampiran permintaan (berisi {id,name,size,type} hasil unggah)
   _docPO: {},    // staging surat pesanan per permintaan
 };
@@ -184,6 +185,7 @@ const S = {
 // ── Helpers ────────────────────────────────────────────────────────────
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fdate(s){if(!s)return '-';const d=new Date(s);return d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})}
+function fdt(s){if(!s)return '-';const d=new Date(s);if(isNaN(d))return esc(s);return d.toLocaleString('id-ID',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}
 function fcurr(n){return 'Rp '+Number(n||0).toLocaleString('id-ID')}
 
 function badge(s){
@@ -233,7 +235,7 @@ async function serverAlive(){
 }
 
 // ── Mesin lokal (localStorage) — mirror dari REST API server ────────────
-const LS_KEY='simfar_db_v4';
+const LS_KEY='simfar_db_v5';
 let _memDB=null; // fallback bila localStorage diblokir (mis. sebagian browser di file://)
 function lsLoad(){try{const r=localStorage.getItem(LS_KEY);if(r)return JSON.parse(r);}catch(e){}return _memDB;}
 function lsSave(db){_memDB=db;try{localStorage.setItem(LS_KEY,JSON.stringify(db));}catch(e){}}
@@ -243,7 +245,7 @@ function resetLocalDB(){_memDB=null;try{localStorage.removeItem(LS_KEY);}catch(e
 function seedLocal(){
   // Hanya akun admin bawaan untuk login pertama. Pengguna lain mendaftar sendiri.
   const users=[
-    {id:1,nama:'Administrator',ruangan:'Semua Ruangan',role:'admin',username:'admin',password:'admin123'},
+    {id:1,nama:'Administrator',ruangan:'Semua Ruangan',role:'admin',username:'admin',password:'admin123',createdAt:new Date().toISOString(),lastLogin:null,loginCount:0},
   ];
   return {users,permintaan:[],pengajuan:[],anggaran:[],stok:[],pemakaian:[],opname:[],files:[],seq:{item:1,poItem:1,stok:1,file:1}};
 }
@@ -274,8 +276,10 @@ function localApi(path,{method='GET',json,body}={}){
   const nid=(prefix,list)=>{let mx=0;list.forEach(x=>{const n=parseInt(String(x.id).split('-')[1],10);if(!isNaN(n)&&n>mx)mx=n;});return prefix+'-'+String(mx+1).padStart(3,'0');};
   const res=parts[1];
 
-  // /api/users
-  if(res==='users'&&m==='GET'){const g={};db.users.forEach(u=>{(g[u.role]=g[u.role]||[]).push({id:u.id,nama:u.nama,ruangan:u.ruangan,role:u.role});});return Promise.resolve(g);}
+  // /api/users → daftar pengguna (tanpa password) untuk monitoring admin
+  if(res==='users'&&m==='GET'){
+    return Promise.resolve(db.users.map(u=>({id:u.id,nama:u.nama,username:u.username,role:u.role,ruangan:u.ruangan,createdAt:u.createdAt||null,lastLogin:u.lastLogin||null,loginCount:u.loginCount||0})));
+  }
 
   // /api/register
   if(res==='register'&&m==='POST'){
@@ -285,7 +289,7 @@ function localApi(path,{method='GET',json,body}={}){
     const uname=String(b.username).trim().toLowerCase();
     if(db.users.some(u=>(u.username||'').toLowerCase()===uname))E('Username sudah dipakai');
     const id=db.users.reduce((mx,u)=>Math.max(mx,u.id||0),0)+1;
-    const user={id,nama:String(b.nama).trim(),ruangan:String(b.ruangan).trim(),role:b.role,username:uname,password:String(b.password)};
+    const user={id,nama:String(b.nama).trim(),ruangan:String(b.ruangan).trim(),role:b.role,username:uname,password:String(b.password),createdAt:new Date().toISOString(),lastLogin:null,loginCount:0};
     db.users.push(user);save();
     return Promise.resolve({id:user.id,nama:user.nama,ruangan:user.ruangan,role:user.role,username:user.username});
   }
@@ -296,6 +300,7 @@ function localApi(path,{method='GET',json,body}={}){
     const uname=String(b.username||'').trim().toLowerCase();
     const u=db.users.find(u=>(u.username||'').toLowerCase()===uname&&u.password===b.password);
     if(!u)E('Username atau password salah');
+    u.lastLogin=new Date().toISOString();u.loginCount=(u.loginCount||0)+1;save();
     return Promise.resolve({id:u.id,nama:u.nama,ruangan:u.ruangan,role:u.role,username:u.username});
   }
 
@@ -448,16 +453,19 @@ function isAdminLike(r){return ADMIN_ROLES.includes(r);}
 // Muat seluruh koleksi transaksional dari server ke cache S sebelum render.
 async function loadAll(){
   const role=S.user?.role;
-  const tasks=[api('/api/permintaan'),api('/api/pengajuan'),api('/api/anggaran')];
-  const wantStok=role==='laboratorium'||isAdminLike(role);
-  if(wantStok){
-    // Lab → stok ruangannya saja; Admin → semua ruangan (tanpa filter).
+  const [permintaan,pengajuan,anggaran]=await Promise.all([
+    api('/api/permintaan'),api('/api/pengajuan'),api('/api/anggaran')
+  ]);
+  S.permintaan=permintaan;S.pengajuan=pengajuan;S.anggaran=anggaran;
+  if(role==='laboratorium'||isAdminLike(role)){
+    // Lab → stok ruangannya saja; Admin-like → semua ruangan (tanpa filter).
     const r=role==='laboratorium'?'?ruangan='+encodeURIComponent(S.user.ruangan):'';
-    tasks.push(api('/api/stok'+r),api('/api/stok/pemakaian'+r),api('/api/stok/opname'+r));
+    const [stok,pemakaian,opname]=await Promise.all([
+      api('/api/stok'+r),api('/api/stok/pemakaian'+r),api('/api/stok/opname'+r)
+    ]);
+    S.stok=stok;S.pemakaian=pemakaian;S.opname=opname;
   }
-  const res=await Promise.all(tasks);
-  S.permintaan=res[0];S.pengajuan=res[1];S.anggaran=res[2];
-  if(wantStok){S.stok=res[3];S.pemakaian=res[4];S.opname=res[5];}
+  if(role==='admin')S.users=await api('/api/users'); // monitoring pengguna (admin saja)
 }
 
 const UP_OK=['application/pdf','application/msword',
@@ -517,18 +525,23 @@ function navItems(){
     {icon:'ti-arrow-bar-down',label:'Pemakaian Stok',page:'lab-pemakaian'},
     {icon:'ti-clipboard-check',label:'Stok Opname',page:'lab-opname'},
   ];
-  if(isAdminLike(r))return[
-    {sec:'Permintaan'},
-    {icon:'ti-layout-dashboard',label:'Dashboard',page:'f-home'},
-    {icon:'ti-inbox',label:'Semua Permintaan',page:'f-inbox'},
-    {sec:'Pemesanan & Keuangan'},
-    {icon:'ti-file-invoice',label:'Pengajuan Pemesanan',page:'f-pengajuan'},
-    {icon:'ti-receipt-2',label:'Persetujuan Keuangan',page:'ke-approval'},
-    {icon:'ti-history',label:'Riwayat Pembayaran',page:'ke-history'},
-    {sec:'Laboratorium'},
-    {icon:'ti-transfer-out',label:'Serah Terima Lab',page:'f-serahterima'},
-    {icon:'ti-packages',label:'Sisa Stok (Semua Ruangan)',page:'lab-stok'},
-  ];
+  if(isAdminLike(r)){
+    const items=[
+      {sec:'Permintaan'},
+      {icon:'ti-layout-dashboard',label:'Dashboard',page:'f-home'},
+      {icon:'ti-inbox',label:'Semua Permintaan',page:'f-inbox'},
+      {sec:'Pemesanan & Keuangan'},
+      {icon:'ti-file-invoice',label:'Pengajuan Pemesanan',page:'f-pengajuan'},
+      {icon:'ti-receipt-2',label:'Persetujuan Keuangan',page:'ke-approval'},
+      {icon:'ti-history',label:'Riwayat Pembayaran',page:'ke-history'},
+      {sec:'Laboratorium'},
+      {icon:'ti-transfer-out',label:'Serah Terima Lab',page:'f-serahterima'},
+      {icon:'ti-packages',label:'Sisa Stok (Semua Ruangan)',page:'lab-stok'},
+    ];
+    // Menu monitoring pengguna hanya untuk Administrator (bukan Manager/Direktur).
+    if(r==='admin')items.push({sec:'Administrasi'},{icon:'ti-users',label:'Manajemen User',page:'admin-users'});
+    return items;
+  }
   return[];
 }
 
@@ -539,6 +552,7 @@ const PAGE_TITLE={
   'lab-home':'Dashboard','lab-form':'Buat Permintaan','lab-history':'Riwayat Permintaan','lab-detail':'Detail Permintaan',
   'lab-anggaran':'Anggaran Bulanan',
   'lab-stok':'Sisa Stok','lab-pemakaian':'Pemakaian Stok','lab-opname':'Stok Opname',
+  'admin-users':'Manajemen User',
   'f-serahterima':'Serah Terima Lab','f-stdetail':'Input Harga Serah Terima',
 };
 
@@ -1733,6 +1747,45 @@ async function simpanOpname(){
   }catch(e){toast(e.message,'warn');}
 }
 
+// ── ADMIN — MANAJEMEN USER ─────────────────────────────────────────────
+function renderAdminUsers(){
+  const roleLbl={keperawatan:'Unit',laboratorium:'Laboratorium',farmasi:'Farmasi',keuangan:'Keuangan',manager:'Manager',direktur:'Direktur',admin:'Administrator'};
+  const list=(S.users||[]).slice();
+  const total=list.length;
+  const pernah=list.filter(u=>u.lastLogin).length;
+  const belum=total-pernah;
+  const rows=list.slice().sort((a,b)=>(b.lastLogin||'').localeCompare(a.lastLogin||'')).map(u=>`<tr>
+    <td>${esc(u.nama)}</td>
+    <td>${esc(u.username||'-')}</td>
+    <td>${esc(roleLbl[u.role]||u.role)}</td>
+    <td>${esc(u.ruangan||'-')}</td>
+    <td>${u.createdAt?fdt(u.createdAt):'<span style="color:var(--t3)">-</span>'}</td>
+    <td>${u.lastLogin?fdt(u.lastLogin):'<span style="color:var(--t3)">Belum pernah</span>'}</td>
+    <td style="text-align:center">${u.loginCount||0}</td>
+  </tr>`).join('');
+  return `
+  <div class="stat-grid">
+    <div class="stat-card"><div class="s-val">${total}</div><div class="s-lbl">Total Pengguna Terdaftar</div></div>
+    <div class="stat-card"><div class="s-val" style="color:var(--ok)">${pernah}</div><div class="s-lbl">Pernah Login</div></div>
+    <div class="stat-card"><div class="s-val" style="color:var(--warn)">${belum}</div><div class="s-lbl">Belum Pernah Login</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><h3>Daftar Pengguna</h3>
+      <button class="btn btn-ghost btn-sm" onclick="go('admin-users')"><i class="ti ti-refresh" style="font-size:12px"></i>Muat Ulang</button>
+    </div>
+    <div class="info-box info" style="margin-bottom:12px">
+      <i class="ti ti-info-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i>
+      Pantau akun yang mendaftar, aktivitas login, dan waktu login terakhir tiap pengguna.
+    </div>
+    ${!total
+      ?`<div class="empty"><i class="ti ti-users"></i><p>Belum ada pengguna terdaftar</p></div>`
+      :`<div class="tbl-wrap"><table>
+        <thead><tr><th>Nama</th><th>Username</th><th>Bagian</th><th>Ruangan</th><th>Terdaftar</th><th>Terakhir Login</th><th style="text-align:center">Jml Login</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`}
+  </div>`;
+}
+
 // ── Main render ────────────────────────────────────────────────────────
 function render(){
   const root=document.getElementById('root');
@@ -1742,6 +1795,7 @@ function render(){
     'lab-home':renderKHome,'lab-form':renderKForm,'lab-detail':renderKDetail,'lab-history':renderKHistory,
     'lab-anggaran':renderLabAnggaran,
     'lab-stok':renderLabStok,'lab-pemakaian':renderLabPemakaian,'lab-opname':renderLabOpname,
+    'admin-users':renderAdminUsers,
     'f-home':renderFHome,'f-inbox':renderFInbox,'f-proses':renderFProses,'f-pengajuan':renderFPengajuan,
     'f-serahterima':renderFSerahTerima,'f-stdetail':renderFSerahTerimaDetail,
     'ke-home':renderKeHome,'ke-approval':()=>renderKeApproval(false),'ke-detail':renderKeDetail,'ke-history':renderKeHistory,

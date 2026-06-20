@@ -18,12 +18,15 @@ db.pragma('foreign_keys = ON');
 function init() {
   db.exec(`
   CREATE TABLE IF NOT EXISTS users (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    nama     TEXT NOT NULL,
-    ruangan  TEXT NOT NULL,
-    role     TEXT NOT NULL,
-    username TEXT,
-    password TEXT
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    nama       TEXT NOT NULL,
+    ruangan    TEXT NOT NULL,
+    role       TEXT NOT NULL,
+    username   TEXT,
+    password   TEXT,
+    createdAt  TEXT DEFAULT (datetime('now')),
+    lastLogin  TEXT,
+    loginCount INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS permintaan (
@@ -151,8 +154,11 @@ function init() {
 // Tambah kolom yang mungkin belum ada pada database lama (tanpa kehilangan data).
 function migrate() {
   const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
-  if (!cols.includes('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT');
-  if (!cols.includes('password')) db.exec('ALTER TABLE users ADD COLUMN password TEXT');
+  if (!cols.includes('username'))   db.exec('ALTER TABLE users ADD COLUMN username TEXT');
+  if (!cols.includes('password'))   db.exec('ALTER TABLE users ADD COLUMN password TEXT');
+  if (!cols.includes('createdAt'))  db.exec('ALTER TABLE users ADD COLUMN createdAt TEXT');
+  if (!cols.includes('lastLogin'))  db.exec('ALTER TABLE users ADD COLUMN lastLogin TEXT');
+  if (!cols.includes('loginCount')) db.exec('ALTER TABLE users ADD COLUMN loginCount INTEGER NOT NULL DEFAULT 0');
 }
 
 // ── Seed data (sama dengan demo di app.html) ───────────────────────────

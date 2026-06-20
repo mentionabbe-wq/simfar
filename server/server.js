@@ -114,11 +114,12 @@ function calcUsed(ruangan, bulan) {
 }
 
 // ── USERS / LOGIN ──────────────────────────────────────────────────────
+// Daftar pengguna untuk monitoring admin (tanpa password).
 app.get('/api/users', (_req, res) => {
-  const rows = db.prepare('SELECT id, nama, ruangan, role FROM users ORDER BY id').all();
-  const grouped = {};
-  for (const u of rows) (grouped[u.role] ||= []).push(u);
-  res.json(grouped);
+  const rows = db.prepare(
+    'SELECT id, nama, username, role, ruangan, createdAt, lastLogin, loginCount FROM users ORDER BY id'
+  ).all();
+  res.json(rows);
 });
 
 const ROLES = ['keperawatan', 'laboratorium', 'farmasi', 'keuangan', 'manager', 'direktur'];
@@ -132,7 +133,7 @@ app.post('/api/register', (req, res) => {
   const uname = String(username).trim().toLowerCase();
   const ex = db.prepare('SELECT id FROM users WHERE lower(username) = ?').get(uname);
   if (ex) return res.status(409).json({ error: 'Username sudah dipakai' });
-  const info = db.prepare('INSERT INTO users (nama, ruangan, role, username, password) VALUES (?, ?, ?, ?, ?)')
+  const info = db.prepare("INSERT INTO users (nama, ruangan, role, username, password, createdAt) VALUES (?, ?, ?, ?, ?, datetime('now'))")
     .run(String(nama).trim(), String(ruangan).trim(), role, uname, String(password));
   res.status(201).json({ id: info.lastInsertRowid, nama: String(nama).trim(), ruangan: String(ruangan).trim(), role, username: uname });
 });
@@ -143,6 +144,7 @@ app.post('/api/login', (req, res) => {
   const uname = String(username || '').trim().toLowerCase();
   const u = db.prepare('SELECT id, nama, ruangan, role, username, password FROM users WHERE lower(username) = ?').get(uname);
   if (!u || u.password !== password) return res.status(401).json({ error: 'Username atau password salah' });
+  db.prepare("UPDATE users SET lastLogin = datetime('now'), loginCount = COALESCE(loginCount, 0) + 1 WHERE id = ?").run(u.id);
   res.json({ id: u.id, nama: u.nama, ruangan: u.ruangan, role: u.role, username: u.username });
 });
 
