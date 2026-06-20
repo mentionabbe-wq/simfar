@@ -1006,6 +1006,10 @@ function renderFProses(){
     </div>
     ${ihtml}
     <div class="doc-section">
+      <div class="doc-section-title"><i class="ti ti-paperclip" style="font-size:12px;vertical-align:-1px;margin-right:4px"></i>Dokumen Permintaan (dari Unit)</div>
+      <div class="flist" style="margin-top:6px">${docReadonlyHtml(p.dokumen)}</div>
+    </div>
+    <div class="doc-section">
       <div class="doc-section-title"><i class="ti ti-file-certificate" style="font-size:12px;vertical-align:-1px;margin-right:4px"></i>Surat Pesanan</div>
       <div class="doc-section-sub">Upload surat pesanan kepada supplier/PBF (PDF, Word, JPG — maks. 10 MB)</div>
       ${!done?`
@@ -1019,7 +1023,7 @@ function renderFProses(){
       </div>
       <input type="file" id="fi-po-${p.id}" multiple accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onchange="pUpload('${p.id}',this.files)">
       <div class="flist" id="flist-po-${p.id}">${docListHtml(S._docPO[p.id]||[],'p',p.id)}</div>`
-      :`<div class="flist" style="margin-top:6px">${docReadonlyHtml(S._docPO[p.id])}</div>`}
+      :`<div class="flist" style="margin-top:6px">${docReadonlyHtml(relPO.flatMap(po=>po.suratPesanan||[]))}</div>`}
     </div>
     ${relPO.length?`<div class="info-box warn" style="margin-top:14px">
       <div style="font-weight:500;margin-bottom:6px"><i class="ti ti-file-invoice" style="font-size:13px;vertical-align:-2px"></i> Pengajuan Terkait</div>
