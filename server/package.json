@@ -1,0 +1,21 @@
+{
+  "name": "simfar-backend",
+  "version": "1.0.0",
+  "description": "Backend REST API untuk SimFar — Sistem Informasi Permintaan Alkes & BMHP",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node db.js --reseed"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}
