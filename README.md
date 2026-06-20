@@ -81,7 +81,8 @@ image multi-arch (amd64+arm64) ke **GHCR**: `ghcr.io/mentionabbe-wq/simfar:lates
 ```
 permintaan-ruangan/
 ├─ app.html              Aplikasi SimFar (mandiri; berisi mesin lokal + klien API server)
-├─ index.html            Draf formulir peminjaman ruangan (terpisah)
+├─ index.html            Halaman utama → otomatis mengalihkan ke app.html
+├─ peminjaman-ruangan.html  Draf formulir peminjaman ruangan (terpisah)
 ├─ Dockerfile            Image untuk self-host (CasaOS)
 ├─ docker-compose.yml    Definisi service + volume persisten
 ├─ .github/workflows/    CI: build & publish image ke GHCR
