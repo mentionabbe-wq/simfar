@@ -1125,6 +1125,7 @@ function renderKeDetail(){
   const po=S.pengajuan.find(x=>x.id===S.keDetailId);
   if(!po)return`<div class="empty"><i class="ti ti-alert-circle"></i><p>Data tidak ditemukan</p></div>`;
   const isEdit=po.status==='menunggu';
+  const req=S.permintaan.find(x=>x.id===po.permintaanId);
   const irows=po.items.map((it,i)=>`<tr>
     <td>${esc(it.nama)}</td>
     <td>${it.jumlah} ${esc(it.satuan)}</td>
@@ -1166,6 +1167,14 @@ function renderKeDetail(){
         <td style="font-weight:500;padding:10px 12px" id="ke-total">${fcurr(po.total)}</td>
       </tr></tfoot>
     </table></div>
+    <div class="doc-section">
+      <div class="doc-section-title"><i class="ti ti-paperclip" style="font-size:12px;vertical-align:-1px;margin-right:4px"></i>Dokumen Permintaan (dari Unit)</div>
+      <div class="flist" style="margin-top:6px">${docReadonlyHtml(req?req.dokumen:[])}</div>
+    </div>
+    <div class="doc-section">
+      <div class="doc-section-title"><i class="ti ti-file-certificate" style="font-size:12px;vertical-align:-1px;margin-right:4px"></i>Surat Pesanan (dari Farmasi)</div>
+      <div class="flist" style="margin-top:6px">${docReadonlyHtml(po.suratPesanan)}</div>
+    </div>
     ${isEdit?`<div class="fg full" style="margin-top:14px">
       <label>Catatan Keuangan</label>
       <textarea id="ke-cat" placeholder="Syarat pembayaran, catatan persetujuan...">${esc(po.catatan)}</textarea>
@@ -1255,11 +1264,17 @@ function docListHtml(arr, prefix, param){
 }
 function docReadonlyHtml(arr){
   if(!arr||!arr.length)return'<span style="font-size:12px;color:var(--t3)">Tidak ada lampiran</span>';
-  return arr.map(f=>`<div class="fitem">
-    <i class="ti ${fIcon(f.name)} fi-ic"></i>
-    <span class="fi-nm" title="${esc(f.name)}">${esc(f.name)}</span>
-    <span class="fi-sz">${fmtSz(f.size)}</span>
-  </div>`).join('');
+  return arr.map(f=>{
+    // Di mode server file bisa diunduh/dibuka; di mode lokal hanya metadata.
+    const nm=(!USE_LOCAL&&f.id)
+      ?`<a class="fi-nm" href="${API}/api/files/${f.id}" target="_blank" rel="noopener" title="${esc(f.name)}" style="color:var(--info)">${esc(f.name)}</a>`
+      :`<span class="fi-nm" title="${esc(f.name)}">${esc(f.name)}</span>`;
+    return `<div class="fitem">
+      <i class="ti ${fIcon(f.name)} fi-ic"></i>
+      ${nm}
+      <span class="fi-sz">${fmtSz(f.size)}</span>
+    </div>`;
+  }).join('');
 }
 async function kUpload(files){
   const up=await uploadFiles(files);
