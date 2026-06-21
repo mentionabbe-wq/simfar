@@ -446,6 +446,16 @@ function localApi(path,{method='GET',json,body}={}){
       save();
       return Promise.resolve(db.stok.find(s=>s.ruangan===b.ruangan&&s.nama===String(b.nama).trim()));
     }
+    if(parts.length===3&&m==='PUT'&&parts[2]!=='pemakaian'&&parts[2]!=='opname'){ // edit item stok
+      const b=json||{};
+      const s=db.stok.find(x=>String(x.id)===String(parts[2]));
+      if(!s)E('Item stok tidak ditemukan');
+      if(!b.nama||!String(b.nama).trim())E('Nama item wajib diisi');
+      const qty=Math.max(0,parseInt(b.jumlah,10));
+      if(!Number.isFinite(qty))E('Jumlah tidak valid');
+      s.nama=String(b.nama).trim();s.jenis=b.jenis==='bmhp'?'bmhp':'alkes';s.satuan=String(b.satuan||'pcs').trim()||'pcs';s.jumlah=qty;s.harga=Math.max(0,parseInt(b.harga,10)||0);
+      save();return Promise.resolve(s);
+    }
     if(parts[2]==='pemakaian'&&m==='GET'){
       return Promise.resolve(db.pemakaian.filter(x=>!q.ruangan||x.ruangan===q.ruangan).slice().reverse());
     }
@@ -527,6 +537,7 @@ async function go(page,params={}){
     page=px+page.slice(2);
   }
   S.page=page;Object.assign(S,params);
+  S._stokFormOpen=false;S._stokEdit=null; // tutup form stok saat pindah halaman
   if(S.user&&page!=='login'){
     try{await loadAll();}catch(e){toast('Gagal memuat data dari server: '+e.message,'warn');}
   }
@@ -1643,6 +1654,8 @@ function stokStatusBadge(j){
 function renderLabStok(){
   const isLab=S.user.role==='laboratorium';
   const showRoom=!isLab; // non-lab (Farmasi/Admin/dll) melihat stok semua ruangan + kolom Ruangan
+  const formOpen=isLab&&S._stokFormOpen;
+  const ed=formOpen&&S._stokEdit?S.stok.find(x=>x.id===S._stokEdit):null;
   const list=S.stok.slice().sort((a,b)=>showRoom?(a.ruangan||'').localeCompare(b.ruangan||'')||a.nama.localeCompare(b.nama):a.nama.localeCompare(b.nama));
   const totalNilai=list.reduce((s,x)=>s+(x.harga||0)*x.jumlah,0);
   const habis=list.filter(x=>x.jumlah<=0).length;
@@ -1656,6 +1669,7 @@ function renderLabStok(){
     <td>${fcurr(x.harga)}</td>
     <td>${fcurr((x.harga||0)*x.jumlah)}</td>
     <td>${stokStatusBadge(x.jumlah)}</td>
+    ${isLab?`<td><button class="btn btn-ghost btn-sm" style="padding:5px 9px" onclick="openStokEdit(${x.id})" title="Edit item"><i class="ti ti-edit" style="font-size:13px"></i></button></td>`:''}
   </tr>`).join('');
   return `
   <div class="stat-grid">
@@ -1664,27 +1678,33 @@ function renderLabStok(){
     <div class="stat-card"><div class="s-val" style="color:var(--err)">${habis}</div><div class="s-lbl">Stok Habis</div></div>
     <div class="stat-card"><div class="s-val" style="font-size:18px">${fcurr(totalNilai)}</div><div class="s-lbl">Nilai Persediaan</div></div>
   </div>
-  ${isLab?`<div class="card">
-    <div class="card-hd"><h3>Tambah Item Stok</h3></div>
-    <div class="info-box info" style="margin-bottom:12px">
-      <i class="ti ti-info-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i>
-      Tambah item baru, atau tambah jumlah ke item yang sudah ada (dicocokkan berdasarkan nama).
+  ${formOpen?`<div class="card">
+    <div class="card-hd"><h3>${ed?'Edit Item Stok':'Tambah Item Stok'}</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeStokForm()"><i class="ti ti-x" style="font-size:12px"></i>Tutup</button>
     </div>
     <div class="fgrid">
-      <div class="fg full"><label>Nama Item <span class="req">*</span></label><input type="text" id="st-nama" placeholder="mis. Reagen HbA1c" list="stok-names"></div>
-      ${stokDatalist()}
-      <div class="fg"><label>Jenis</label><select id="st-jenis"><option value="alkes">Alkes</option><option value="bmhp">BMHP</option></select></div>
-      <div class="fg"><label>Satuan</label><input type="text" id="st-satuan" value="pcs" placeholder="pcs"></div>
-      <div class="fg"><label>Jumlah <span class="req">*</span></label><input type="number" id="st-jumlah" min="1" placeholder="0"></div>
-      <div class="fg"><label>Harga Satuan (Rp)</label><input type="number" id="st-harga" min="0" placeholder="opsional"></div>
+      <div class="fg full"><label>Nama Item <span class="req">*</span></label><input type="text" id="st-nama" value="${ed?esc(ed.nama):''}" placeholder="mis. Reagen HbA1c" list="stok-names"></div>
+      <div class="fg"><label>Jenis</label><select id="st-jenis"><option value="alkes"${ed&&ed.jenis==='alkes'?' selected':''}>Alkes</option><option value="bmhp"${ed&&ed.jenis==='bmhp'?' selected':''}>BMHP</option></select></div>
+      <div class="fg"><label>Satuan</label><input type="text" id="st-satuan" value="${ed?esc(ed.satuan):'pcs'}" placeholder="pcs"></div>
+      <div class="fg"><label>Jumlah <span class="req">*</span></label><input type="number" id="st-jumlah" min="0" value="${ed?ed.jumlah:''}" placeholder="0"></div>
+      <div class="fg"><label>Harga Satuan (Rp)</label><input type="number" id="st-harga" min="0" value="${ed&&ed.harga?ed.harga:''}" placeholder="opsional"></div>
+    </div>
+    ${stokDatalist()}
+    <div class="info-box info" style="margin:10px 0 0">
+      <i class="ti ti-info-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i>
+      ${ed?'Mengubah data item ini — jumlah di-set ke nilai yang diisi.':'Tambah item baru, atau menambah jumlah ke item yang sudah ada (berdasarkan nama).'}
     </div>
     <div class="form-actions">
-      <button class="btn btn-primary" onclick="tambahStok()"><i class="ti ti-plus"></i>Tambah ke Stok</button>
+      <button class="btn btn-ghost" onclick="closeStokForm()">Batal</button>
+      <button class="btn btn-primary" onclick="saveStokForm()"><i class="ti ti-device-floppy"></i>${ed?'Simpan Perubahan':'Tambah ke Stok'}</button>
     </div>
   </div>`:''}
   <div class="card">
     <div class="card-hd"><h3>Sisa Stok — ${showRoom?'Semua Ruangan':esc(S.user.ruangan)}</h3>
-      ${isLab?`<button class="btn btn-ghost btn-sm" onclick="go('lab-pemakaian')"><i class="ti ti-arrow-bar-down" style="font-size:12px"></i>Catat Pemakaian</button>`:''}
+      ${isLab?`<div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="openStokAdd()"><i class="ti ti-plus" style="font-size:12px"></i>Tambah Item</button>
+        <button class="btn btn-ghost btn-sm" onclick="go('lab-pemakaian')"><i class="ti ti-arrow-bar-down" style="font-size:12px"></i>Catat Pemakaian</button>
+      </div>`:''}
     </div>
     <div class="info-box info" style="margin-bottom:12px">
       <i class="ti ti-info-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i>
@@ -1693,23 +1713,34 @@ function renderLabStok(){
     ${!list.length
       ?`<div class="empty"><i class="ti ti-packages"></i><p>Belum ada stok.</p></div>`
       :`<div class="tbl-wrap"><table>
-        <thead><tr>${showRoom?'<th>Ruangan</th>':''}<th>Nama Item</th><th>Jenis</th><th>Jumlah</th><th>Satuan</th><th>Harga Satuan</th><th>Nilai</th><th>Status</th></tr></thead>
+        <thead><tr>${showRoom?'<th>Ruangan</th>':''}<th>Nama Item</th><th>Jenis</th><th>Jumlah</th><th>Satuan</th><th>Harga Satuan</th><th>Nilai</th><th>Status</th>${isLab?'<th></th>':''}</tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`}
   </div>`;
 }
 
-async function tambahStok(){
+function openStokAdd(){S._stokEdit=null;S._stokFormOpen=true;render();window.scrollTo(0,0);}
+function openStokEdit(id){S._stokEdit=id;S._stokFormOpen=true;render();window.scrollTo(0,0);}
+function closeStokForm(){S._stokFormOpen=false;S._stokEdit=null;render();}
+async function saveStokForm(){
   const nama=document.getElementById('st-nama')?.value?.trim();
   const jenis=document.getElementById('st-jenis')?.value||'alkes';
   const satuan=document.getElementById('st-satuan')?.value?.trim()||'pcs';
-  const jumlah=parseInt(document.getElementById('st-jumlah')?.value)||0;
+  const jumlah=parseInt(document.getElementById('st-jumlah')?.value);
   const harga=parseInt(document.getElementById('st-harga')?.value)||0;
   if(!nama){toast('Isi nama item','warn');return;}
-  if(jumlah<=0){toast('Jumlah harus lebih dari 0','warn');return;}
+  const editId=S._stokEdit;
   try{
-    await api('/api/stok',{method:'POST',json:{ruangan:S.user.ruangan,nama,jenis,satuan,jumlah,harga}});
-    toast(`Item "${nama}" ditambahkan ke stok`);
+    if(editId){
+      if(!Number.isFinite(jumlah)||jumlah<0){toast('Jumlah tidak valid','warn');return;}
+      await api('/api/stok/'+editId,{method:'PUT',json:{nama,jenis,satuan,jumlah,harga}});
+      toast('Item stok diperbarui');
+    }else{
+      if(!Number.isFinite(jumlah)||jumlah<=0){toast('Jumlah harus lebih dari 0','warn');return;}
+      await api('/api/stok',{method:'POST',json:{ruangan:S.user.ruangan,nama,jenis,satuan,jumlah,harga}});
+      toast(`Item "${nama}" ditambahkan ke stok`);
+    }
+    S._stokFormOpen=false;S._stokEdit=null;
     go('lab-stok');
   }catch(e){toast(e.message,'warn');}
 }

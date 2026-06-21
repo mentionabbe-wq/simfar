@@ -406,6 +406,20 @@ app.post('/api/stok', (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM stok WHERE ruangan = ? AND nama = ?').get(ruangan, String(nama).trim()));
 });
 
+// Edit item stok (lab). body: { nama, jenis, satuan, jumlah, harga }
+app.put('/api/stok/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM stok WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Item stok tidak ditemukan' });
+  const { nama, jenis, satuan, jumlah, harga } = req.body || {};
+  if (!nama || !String(nama).trim()) return res.status(400).json({ error: 'Nama item wajib diisi' });
+  const qty = Math.max(0, parseInt(jumlah, 10));
+  if (!Number.isFinite(qty)) return res.status(400).json({ error: 'Jumlah tidak valid' });
+  const hg = Math.max(0, parseInt(harga, 10) || 0);
+  db.prepare("UPDATE stok SET nama = ?, jenis = ?, satuan = ?, jumlah = ?, harga = ?, updatedAt = datetime('now') WHERE id = ?")
+    .run(String(nama).trim(), jenis === 'bmhp' ? 'bmhp' : 'alkes', String(satuan || 'pcs').trim() || 'pcs', qty, hg, row.id);
+  res.json(db.prepare('SELECT * FROM stok WHERE id = ?').get(row.id));
+});
+
 app.get('/api/stok/pemakaian', (req, res) => {
   const { ruangan } = req.query;
   let sql = 'SELECT * FROM stok_pemakaian';
