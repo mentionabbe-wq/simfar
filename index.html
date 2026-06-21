@@ -772,7 +772,7 @@ function renderKHome(){
 let _iIdx=2;
 function itemRow(i,v={}){
   return `<div class="item-row" id="ir-${i}">
-    <input type="text" placeholder="Nama alkes/BMHP" id="in-${i}" value="${esc(v.nama||'')}">
+    <input type="text" placeholder="Nama alkes/BMHP" id="in-${i}" value="${esc(v.nama||'')}" list="stok-names" onchange="fillFromStok(${i})">
     <select id="ij-${i}">
       <option value="alkes"${v.jenis==='alkes'?' selected':''}>Alkes</option>
       <option value="bmhp"${v.jenis==='bmhp'?' selected':''}>BMHP</option>
@@ -790,6 +790,21 @@ function addRow(){
   c.appendChild(d.firstElementChild);
 }
 function rmRow(i){const e=document.getElementById('ir-'+i);if(e)e.remove();}
+
+// Datalist nama item dari stok lab → autocomplete di form permintaan & tambah stok.
+function stokDatalist(){
+  const names=[...new Set((S.stok||[]).map(s=>s.nama))];
+  return `<datalist id="stok-names">${names.map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>`;
+}
+// Saat nama cocok dengan item stok, isi otomatis jenis & satuan agar konsisten.
+function fillFromStok(i){
+  const nm=document.getElementById('in-'+i)?.value?.trim().toLowerCase();
+  if(!nm)return;
+  const s=(S.stok||[]).find(x=>String(x.nama).toLowerCase()===nm);
+  if(!s)return;
+  const js=document.getElementById('ij-'+i);if(js)js.value=s.jenis;
+  const st=document.getElementById('is-'+i);if(st&&!st.value.trim())st.value=s.satuan;
+}
 
 function renderKForm(){
   _iIdx=2;
@@ -828,6 +843,7 @@ function renderKForm(){
   <div id="irows">
     ${itemRow(0)}${itemRow(1)}
   </div>
+  ${stokDatalist()}
   <div class="doc-section">
     <div class="doc-section-title"><i class="ti ti-paperclip" style="font-size:12px;vertical-align:-1px;margin-right:4px"></i>Dokumen Permintaan</div>
     <div class="doc-section-sub">Lampirkan surat permintaan, TOR, atau dokumen pendukung (PDF, Word, JPG — maks. 10 MB)</div>
@@ -1655,7 +1671,8 @@ function renderLabStok(){
       Tambah item baru, atau tambah jumlah ke item yang sudah ada (dicocokkan berdasarkan nama).
     </div>
     <div class="fgrid">
-      <div class="fg full"><label>Nama Item <span class="req">*</span></label><input type="text" id="st-nama" placeholder="mis. Reagen HbA1c"></div>
+      <div class="fg full"><label>Nama Item <span class="req">*</span></label><input type="text" id="st-nama" placeholder="mis. Reagen HbA1c" list="stok-names"></div>
+      ${stokDatalist()}
       <div class="fg"><label>Jenis</label><select id="st-jenis"><option value="alkes">Alkes</option><option value="bmhp">BMHP</option></select></div>
       <div class="fg"><label>Satuan</label><input type="text" id="st-satuan" value="pcs" placeholder="pcs"></div>
       <div class="fg"><label>Jumlah <span class="req">*</span></label><input type="number" id="st-jumlah" min="1" placeholder="0"></div>
