@@ -482,26 +482,31 @@ app.post('/api/stok/opname', (req, res) => {
 
   const id = nextId('OPN', 'stok_opname');
   let totalSelisih = 0;
+  let totalSelisihNilai = 0;
   let disesuaikan = 0;
   db.transaction(() => {
-    db.prepare(`INSERT INTO stok_opname (id, ruangan, tanggal, petugas, catatan, jumlahItem, totalSelisih)
-                VALUES (?, ?, ?, ?, ?, 0, 0)`)
+    db.prepare(`INSERT INTO stok_opname (id, ruangan, tanggal, petugas, catatan, jumlahItem, totalSelisih, totalSelisihNilai)
+                VALUES (?, ?, ?, ?, ?, 0, 0, 0)`)
       .run(id, ruangan, tanggal || TODAY(), String(petugas || '').trim(), String(catatan || '').trim());
-    const insItem = db.prepare('INSERT INTO stok_opname_item (opnameId, stokId, nama, sistem, fisik, selisih) VALUES (?, ?, ?, ?, ?, ?)');
+    const insItem = db.prepare('INSERT INTO stok_opname_item (opnameId, stokId, nama, sistem, fisik, selisih, harga, selisihNilai) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     for (const x of clean) {
       const s = db.prepare('SELECT * FROM stok WHERE id = ? AND ruangan = ?').get(x.stokId, ruangan);
       if (!s) continue;
       const selisih = x.fisik - s.jumlah;
-      insItem.run(id, s.id, s.nama, s.jumlah, x.fisik, selisih);
+      const harga = s.harga || 0;
+      const selisihNilai = selisih * harga;
+      insItem.run(id, s.id, s.nama, s.jumlah, x.fisik, selisih, harga, selisihNilai);
       if (selisih !== 0) {
         db.prepare("UPDATE stok SET jumlah = ?, updatedAt = datetime('now') WHERE id = ?").run(x.fisik, s.id);
         disesuaikan += 1;
       }
       totalSelisih += selisih;
+      totalSelisihNilai += selisihNilai;
     }
-    db.prepare('UPDATE stok_opname SET jumlahItem = ?, totalSelisih = ? WHERE id = ?').run(clean.length, totalSelisih, id);
+    db.prepare('UPDATE stok_opname SET jumlahItem = ?, totalSelisih = ?, totalSelisihNilai = ? WHERE id = ?')
+      .run(clean.length, totalSelisih, totalSelisihNilai, id);
   })();
-  res.status(201).json({ id, disesuaikan, totalSelisih });
+  res.status(201).json({ id, disesuaikan, totalSelisih, totalSelisihNilai });
 });
 
 // ── FILE UPLOAD / DOWNLOAD ─────────────────────────────────────────────

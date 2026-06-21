@@ -127,19 +127,22 @@ function init() {
     tanggal      TEXT NOT NULL,
     petugas      TEXT NOT NULL DEFAULT '',
     catatan      TEXT NOT NULL DEFAULT '',
-    jumlahItem   INTEGER NOT NULL DEFAULT 0,
-    totalSelisih INTEGER NOT NULL DEFAULT 0,
-    createdAt    TEXT NOT NULL DEFAULT (datetime('now'))
+    jumlahItem        INTEGER NOT NULL DEFAULT 0,
+    totalSelisih      INTEGER NOT NULL DEFAULT 0,
+    totalSelisihNilai INTEGER NOT NULL DEFAULT 0,
+    createdAt         TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS stok_opname_item (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    opnameId TEXT NOT NULL REFERENCES stok_opname(id) ON DELETE CASCADE,
-    stokId   INTEGER,
-    nama     TEXT NOT NULL,
-    sistem   INTEGER NOT NULL DEFAULT 0,
-    fisik    INTEGER NOT NULL DEFAULT 0,
-    selisih  INTEGER NOT NULL DEFAULT 0
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    opnameId     TEXT NOT NULL REFERENCES stok_opname(id) ON DELETE CASCADE,
+    stokId       INTEGER,
+    nama         TEXT NOT NULL,
+    sistem       INTEGER NOT NULL DEFAULT 0,
+    fisik        INTEGER NOT NULL DEFAULT 0,
+    selisih      INTEGER NOT NULL DEFAULT 0,
+    harga        INTEGER NOT NULL DEFAULT 0,
+    selisihNilai INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE INDEX IF NOT EXISTS idx_pi_req  ON permintaan_items(permintaanId);
@@ -163,6 +166,12 @@ function migrate() {
 
   const pcols = db.prepare('PRAGMA table_info(permintaan)').all().map((c) => c.name);
   if (!pcols.includes('pemohonUsername')) db.exec('ALTER TABLE permintaan ADD COLUMN pemohonUsername TEXT');
+
+  const ocols = db.prepare('PRAGMA table_info(stok_opname)').all().map((c) => c.name);
+  if (!ocols.includes('totalSelisihNilai')) db.exec('ALTER TABLE stok_opname ADD COLUMN totalSelisihNilai INTEGER NOT NULL DEFAULT 0');
+  const oicols = db.prepare('PRAGMA table_info(stok_opname_item)').all().map((c) => c.name);
+  if (!oicols.includes('harga'))        db.exec('ALTER TABLE stok_opname_item ADD COLUMN harga INTEGER NOT NULL DEFAULT 0');
+  if (!oicols.includes('selisihNilai')) db.exec('ALTER TABLE stok_opname_item ADD COLUMN selisihNilai INTEGER NOT NULL DEFAULT 0');
 }
 
 // ── Seed data (sama dengan demo di app.html) ───────────────────────────

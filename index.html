@@ -475,11 +475,11 @@ function localApi(path,{method='GET',json,body}={}){
       const b=json||{};if(!b.ruangan)E('ruangan wajib diisi');
       const clean=(b.items||[]).map(x=>({stokId:Number(x.stokId),fisik:Math.max(0,parseInt(x.fisik,10))})).filter(x=>x.stokId&&Number.isFinite(x.fisik));
       if(!clean.length)E('Isi hasil hitung fisik minimal 1 item');
-      let totalSelisih=0,disesuaikan=0;const oitems=[];
-      clean.forEach(x=>{const s=db.stok.find(s=>s.id===x.stokId&&s.ruangan===b.ruangan);if(!s)return;const selisih=x.fisik-s.jumlah;oitems.push({stokId:s.id,nama:s.nama,sistem:s.jumlah,fisik:x.fisik,selisih});if(selisih!==0){s.jumlah=x.fisik;disesuaikan++;}totalSelisih+=selisih;});
+      let totalSelisih=0,totalSelisihNilai=0,disesuaikan=0;const oitems=[];
+      clean.forEach(x=>{const s=db.stok.find(s=>s.id===x.stokId&&s.ruangan===b.ruangan);if(!s)return;const selisih=x.fisik-s.jumlah;const harga=s.harga||0;const selisihNilai=selisih*harga;oitems.push({stokId:s.id,nama:s.nama,sistem:s.jumlah,fisik:x.fisik,selisih,harga,selisihNilai});if(selisih!==0){s.jumlah=x.fisik;disesuaikan++;}totalSelisih+=selisih;totalSelisihNilai+=selisihNilai;});
       const id=nid('OPN',db.opname);
-      db.opname.push({id,ruangan:b.ruangan,tanggal:b.tanggal||today,petugas:String(b.petugas||'').trim(),catatan:String(b.catatan||'').trim(),jumlahItem:clean.length,totalSelisih,items:oitems});
-      save();return Promise.resolve({id,disesuaikan,totalSelisih});
+      db.opname.push({id,ruangan:b.ruangan,tanggal:b.tanggal||today,petugas:String(b.petugas||'').trim(),catatan:String(b.catatan||'').trim(),jumlahItem:clean.length,totalSelisih,totalSelisihNilai,items:oitems});
+      save();return Promise.resolve({id,disesuaikan,totalSelisih,totalSelisihNilai});
     }
   }
 
@@ -1825,15 +1825,18 @@ function renderLabOpname(){
     <td>${esc(x.nama)}</td>
     <td><span class="badge b-${x.jenis}">${String(x.jenis||'').toUpperCase()}</span></td>
     <td>${x.jumlah} ${esc(x.satuan)}</td>
-    <td><input type="number" id="of-${i}" data-stok="${x.id}" data-sys="${x.jumlah}" value="${x.jumlah}" min="0" style="width:110px" onchange="recalcOpname()"></td>
+    <td><input type="number" id="of-${i}" data-stok="${x.id}" data-sys="${x.jumlah}" data-harga="${x.harga||0}" value="${x.jumlah}" min="0" style="width:100px" oninput="recalcOpname()"></td>
     <td id="osel-${i}" style="font-weight:500;color:var(--t2)">0</td>
+    <td>${fcurr(x.harga)}</td>
+    <td id="oseln-${i}" style="font-weight:500;color:var(--t2)">${fcurr(0)}</td>
   </tr>`).join('');
   const hist=S.opname.slice();
   const hrows=hist.map(o=>`<tr>
     <td>${esc(o.id)}</td><td>${fdate(o.tanggal)}</td><td>${esc(o.petugas||'-')}</td>
     <td>${o.jumlahItem} item</td>
     <td style="font-weight:500;color:${o.totalSelisih<0?'var(--err)':o.totalSelisih>0?'var(--ok)':'var(--t2)'}">${o.totalSelisih>0?'+':''}${o.totalSelisih}</td>
-    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.catatan||'-')}</td>
+    <td style="font-weight:500;color:${(o.totalSelisihNilai||0)<0?'var(--err)':(o.totalSelisihNilai||0)>0?'var(--ok)':'var(--t2)'}">${(o.totalSelisihNilai||0)>0?'+':''}${fcurr(o.totalSelisihNilai||0)}</td>
+    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(o.catatan||'-')}</td>
   </tr>`).join('');
   return `<div class="card">
     <div class="card-hd"><h3>Stok Opname — ${esc(S.user.ruangan)}</h3></div>
@@ -1848,8 +1851,12 @@ function renderLabOpname(){
         <div class="fg"><label>Petugas</label><input type="text" id="opn-by" value="${esc(S.user.nama)}"></div>
       </div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Nama Item</th><th>Jenis</th><th>Stok Sistem</th><th>Hitung Fisik</th><th>Selisih</th></tr></thead>
+        <thead><tr><th>Nama Item</th><th>Jenis</th><th>Stok Sistem</th><th>Hitung Fisik</th><th>Selisih</th><th>Harga Satuan</th><th>Selisih Nilai</th></tr></thead>
         <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td colspan="6" style="text-align:right;font-weight:500;padding:10px 12px">Total Selisih Nilai</td>
+          <td id="opn-total-nilai" style="font-weight:500;padding:10px 12px">${fcurr(0)}</td>
+        </tr></tfoot>
       </table></div>
       <div class="fg full" style="margin-top:12px"><label>Catatan</label>
         <textarea id="opn-ket" placeholder="Catatan penyesuaian, kondisi barang..." style="min-height:60px"></textarea></div>
@@ -1862,22 +1869,28 @@ function renderLabOpname(){
     ${!hist.length
       ?`<div class="empty"><i class="ti ti-history"></i><p>Belum ada riwayat opname</p></div>`
       :`<div class="tbl-wrap"><table>
-        <thead><tr><th>No.</th><th>Tanggal</th><th>Petugas</th><th>Item</th><th>Total Selisih</th><th>Catatan</th></tr></thead>
+        <thead><tr><th>No.</th><th>Tanggal</th><th>Petugas</th><th>Item</th><th>Total Selisih</th><th>Selisih Nilai</th><th>Catatan</th></tr></thead>
         <tbody>${hrows}</tbody>
       </table></div>`}
   </div>`;
 }
 function recalcOpname(){
+  let totalNilai=0;
   document.querySelectorAll('[id^="of-"]').forEach(inp=>{
     const i=inp.id.split('-')[1];
     const sys=parseInt(inp.dataset.sys)||0;
+    const harga=parseInt(inp.dataset.harga)||0;
     const fis=parseInt(inp.value);
-    const sel=document.getElementById('osel-'+i);
-    if(!sel)return;
     const d=(Number.isNaN(fis)?sys:fis)-sys;
-    sel.textContent=(d>0?'+':'')+d;
-    sel.style.color=d<0?'var(--err)':d>0?'var(--ok)':'var(--t2)';
+    const sel=document.getElementById('osel-'+i);
+    if(sel){sel.textContent=(d>0?'+':'')+d;sel.style.color=d<0?'var(--err)':d>0?'var(--ok)':'var(--t2)';}
+    const nilai=d*harga;
+    const seln=document.getElementById('oseln-'+i);
+    if(seln){seln.textContent=(nilai>0?'+':'')+fcurr(nilai);seln.style.color=nilai<0?'var(--err)':nilai>0?'var(--ok)':'var(--t2)';}
+    totalNilai+=nilai;
   });
+  const tot=document.getElementById('opn-total-nilai');
+  if(tot){tot.textContent=(totalNilai>0?'+':'')+fcurr(totalNilai);tot.style.color=totalNilai<0?'var(--err)':totalNilai>0?'var(--ok)':'var(--t1)';}
 }
 async function simpanOpname(){
   const tanggal=document.getElementById('opn-tgl')?.value||'2026-06-20';
@@ -1892,7 +1905,7 @@ async function simpanOpname(){
   if(!items.length){toast('Isi hasil hitung fisik','warn');return;}
   try{
     const r=await api('/api/stok/opname',{method:'POST',json:{ruangan:S.user.ruangan,tanggal,petugas,catatan,items}});
-    toast(`Opname disimpan. ${r.disesuaikan} item disesuaikan (total selisih ${r.totalSelisih>0?'+':''}${r.totalSelisih}).`);
+    toast(`Opname disimpan. ${r.disesuaikan} item disesuaikan. Selisih nilai: ${fcurr(r.totalSelisihNilai||0)}.`);
     go('lab-opname');
   }catch(e){toast(e.message,'warn');}
 }
