@@ -436,6 +436,16 @@ function localApi(path,{method='GET',json,body}={}){
       let list=db.stok.slice();if(q.ruangan)list=list.filter(s=>s.ruangan===q.ruangan);
       list.sort((a,b)=>a.nama.localeCompare(b.nama));return Promise.resolve(list);
     }
+    if(parts.length===2&&m==='POST'){ // tambah item stok manual
+      const b=json||{};
+      if(!b.ruangan||!b.nama||!String(b.nama).trim())E('Ruangan dan nama item wajib diisi');
+      const qty=Math.max(0,parseInt(b.jumlah,10)||0);
+      if(qty<=0)E('Jumlah harus lebih dari 0');
+      const hg=Math.max(0,parseInt(b.harga,10)||0);
+      upsertStokLocal(db,b.ruangan,{nama:String(b.nama).trim(),jenis:b.jenis==='bmhp'?'bmhp':'alkes',satuan:String(b.satuan||'pcs').trim()||'pcs',jumlah:qty,harga:hg||undefined});
+      save();
+      return Promise.resolve(db.stok.find(s=>s.ruangan===b.ruangan&&s.nama===String(b.nama).trim()));
+    }
     if(parts[2]==='pemakaian'&&m==='GET'){
       return Promise.resolve(db.pemakaian.filter(x=>!q.ruangan||x.ruangan===q.ruangan).slice().reverse());
     }
@@ -484,8 +494,8 @@ async function loadAll(){
     api('/api/permintaan'),api('/api/pengajuan'),api('/api/anggaran')
   ]);
   S.permintaan=permintaan;S.pengajuan=pengajuan;S.anggaran=anggaran;
-  if(role==='laboratorium'||isAdminLike(role)){
-    // Lab → stok ruangannya saja; Admin-like → semua ruangan (tanpa filter).
+  if(role==='laboratorium'||isAdminLike(role)||role==='farmasi'){
+    // Lab → stok ruangannya saja; Farmasi/Admin → semua ruangan (tanpa filter).
     const r=role==='laboratorium'?'?ruangan='+encodeURIComponent(S.user.ruangan):'';
     const [stok,pemakaian,opname]=await Promise.all([
       api('/api/stok'+r),api('/api/stok/pemakaian'+r),api('/api/stok/opname'+r)
@@ -536,6 +546,7 @@ function navItems(){
     {icon:'ti-inbox',label:'Permintaan Masuk',page:'f-inbox'},
     {icon:'ti-file-invoice',label:'Pengajuan Pemesanan',page:'f-pengajuan'},
     {icon:'ti-transfer-out',label:'Serah Terima Lab',page:'f-serahterima'},
+    {icon:'ti-packages',label:'Sisa Stok Lab',page:'lab-stok'},
   ];
   if(r==='keuangan')return[
     {icon:'ti-layout-dashboard',label:'Dashboard',page:'ke-home'},
@@ -1614,7 +1625,8 @@ function stokStatusBadge(j){
   return'<span class="badge b-selesai">Aman</span>';
 }
 function renderLabStok(){
-  const showRoom=isAdminLike(S.user.role);
+  const isLab=S.user.role==='laboratorium';
+  const showRoom=!isLab; // non-lab (Farmasi/Admin/dll) melihat stok semua ruangan + kolom Ruangan
   const list=S.stok.slice().sort((a,b)=>showRoom?(a.ruangan||'').localeCompare(b.ruangan||'')||a.nama.localeCompare(b.nama):a.nama.localeCompare(b.nama));
   const totalNilai=list.reduce((s,x)=>s+(x.harga||0)*x.jumlah,0);
   const habis=list.filter(x=>x.jumlah<=0).length;
@@ -1636,21 +1648,53 @@ function renderLabStok(){
     <div class="stat-card"><div class="s-val" style="color:var(--err)">${habis}</div><div class="s-lbl">Stok Habis</div></div>
     <div class="stat-card"><div class="s-val" style="font-size:18px">${fcurr(totalNilai)}</div><div class="s-lbl">Nilai Persediaan</div></div>
   </div>
+  ${isLab?`<div class="card">
+    <div class="card-hd"><h3>Tambah Item Stok</h3></div>
+    <div class="info-box info" style="margin-bottom:12px">
+      <i class="ti ti-info-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i>
+      Tambah item baru, atau tambah jumlah ke item yang sudah ada (dicocokkan berdasarkan nama).
+    </div>
+    <div class="fgrid">
+      <div class="fg full"><label>Nama Item <span class="req">*</span></label><input type="text" id="st-nama" placeholder="mis. Reagen HbA1c"></div>
+      <div class="fg"><label>Jenis</label><select id="st-jenis"><option value="alkes">Alkes</option><option value="bmhp">BMHP</option></select></div>
+      <div class="fg"><label>Satuan</label><input type="text" id="st-satuan" value="pcs" placeholder="pcs"></div>
+      <div class="fg"><label>Jumlah <span class="req">*</span></label><input type="number" id="st-jumlah" min="1" placeholder="0"></div>
+      <div class="fg"><label>Harga Satuan (Rp)</label><input type="number" id="st-harga" min="0" placeholder="opsional"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="tambahStok()"><i class="ti ti-plus"></i>Tambah ke Stok</button>
+    </div>
+  </div>`:''}
   <div class="card">
-    <div class="card-hd"><h3>Sisa Stok — ${esc(S.user.ruangan||'Semua Ruangan')}</h3>
-      ${S.user.role==='laboratorium'?`<button class="btn btn-ghost btn-sm" onclick="go('lab-pemakaian')"><i class="ti ti-arrow-bar-down" style="font-size:12px"></i>Catat Pemakaian</button>`:''}
+    <div class="card-hd"><h3>Sisa Stok — ${showRoom?'Semua Ruangan':esc(S.user.ruangan)}</h3>
+      ${isLab?`<button class="btn btn-ghost btn-sm" onclick="go('lab-pemakaian')"><i class="ti ti-arrow-bar-down" style="font-size:12px"></i>Catat Pemakaian</button>`:''}
     </div>
     <div class="info-box info" style="margin-bottom:12px">
       <i class="ti ti-info-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px"></i>
-      Stok bertambah otomatis saat serah terima permintaan selesai, dan berkurang saat pemakaian atau penyesuaian stok opname.
+      Stok bertambah saat serah terima selesai atau ditambah manual, dan berkurang saat pemakaian atau penyesuaian stok opname.
     </div>
     ${!list.length
-      ?`<div class="empty"><i class="ti ti-packages"></i><p>Belum ada stok. Stok terisi otomatis setelah serah terima permintaan lab selesai.</p></div>`
+      ?`<div class="empty"><i class="ti ti-packages"></i><p>Belum ada stok.</p></div>`
       :`<div class="tbl-wrap"><table>
         <thead><tr>${showRoom?'<th>Ruangan</th>':''}<th>Nama Item</th><th>Jenis</th><th>Jumlah</th><th>Satuan</th><th>Harga Satuan</th><th>Nilai</th><th>Status</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`}
   </div>`;
+}
+
+async function tambahStok(){
+  const nama=document.getElementById('st-nama')?.value?.trim();
+  const jenis=document.getElementById('st-jenis')?.value||'alkes';
+  const satuan=document.getElementById('st-satuan')?.value?.trim()||'pcs';
+  const jumlah=parseInt(document.getElementById('st-jumlah')?.value)||0;
+  const harga=parseInt(document.getElementById('st-harga')?.value)||0;
+  if(!nama){toast('Isi nama item','warn');return;}
+  if(jumlah<=0){toast('Jumlah harus lebih dari 0','warn');return;}
+  try{
+    await api('/api/stok',{method:'POST',json:{ruangan:S.user.ruangan,nama,jenis,satuan,jumlah,harga}});
+    toast(`Item "${nama}" ditambahkan ke stok`);
+    go('lab-stok');
+  }catch(e){toast(e.message,'warn');}
 }
 
 // ── LAB — PEMAKAIAN STOK ───────────────────────────────────────────────

@@ -389,6 +389,23 @@ app.get('/api/stok', (req, res) => {
   res.json(db.prepare(sql).all(...args));
 });
 
+// Tambah item stok manual (lab). body: { ruangan, nama, jenis, satuan, jumlah, harga }
+app.post('/api/stok', (req, res) => {
+  const { ruangan, nama, jenis, satuan, jumlah, harga } = req.body || {};
+  if (!ruangan || !nama || !String(nama).trim()) return res.status(400).json({ error: 'Ruangan dan nama item wajib diisi' });
+  const qty = Math.max(0, parseInt(jumlah, 10) || 0);
+  if (qty <= 0) return res.status(400).json({ error: 'Jumlah harus lebih dari 0' });
+  const hg = Math.max(0, parseInt(harga, 10) || 0);
+  upsertStok(ruangan, {
+    nama: String(nama).trim(),
+    jenis: jenis === 'bmhp' ? 'bmhp' : 'alkes',
+    satuan: String(satuan || 'pcs').trim() || 'pcs',
+    jumlah: qty,
+    harga: hg || undefined, // 0/ kosong → pertahankan harga lama (lihat upsertStok)
+  });
+  res.status(201).json(db.prepare('SELECT * FROM stok WHERE ruangan = ? AND nama = ?').get(ruangan, String(nama).trim()));
+});
+
 app.get('/api/stok/pemakaian', (req, res) => {
   const { ruangan } = req.query;
   let sql = 'SELECT * FROM stok_pemakaian';
