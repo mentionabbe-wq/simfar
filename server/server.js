@@ -20,6 +20,9 @@ app.use(express.json());
 const FRONTEND_DIR = path.join(__dirname, '..');
 app.use(express.static(FRONTEND_DIR));
 
+// Kompatibilitas URL lama: /app.html → / (file kini bernama index.html).
+app.get('/app.html', (_req, res) => res.redirect('/'));
+
 // ── Upload (multer) ────────────────────────────────────────────────────
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
